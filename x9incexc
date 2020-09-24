@@ -1,0 +1,168 @@
+#!/bin/bash
+# shellcheck disable=2004  ## Inappropriate complaining of "$/${} is unnecessary on arithmetic variables."
+# shellcheck disable=2034  ## Unused variables.
+# shellcheck disable=2119  ## Disable confusing and inapplicable warning about function's $1 meaning script's $1.
+# shellcheck disable=2155  ## Disable check to 'Declare and assign separately to avoid masking return values'.
+# shellcheck disable=2120  ## OK with declaring variables that accept arguments, without calling with arguments (this is 'overloading').
+
+##
+##	WARNING: This script is maintained on github. Don't edit directly. https://github.com/jim-collier/x9dedupe
+##
+
+##	Purpose:
+##		This script generates an explicit list of files for use by some other
+##		program, with a regex-based syntax that uses an include/exclude order
+##		which works the same way the human test subject cognates, unless said
+##		test subject is lying to us in order to make the probing stop. Always
+##		screaming about the probing, that one.
+##	Problem solved:
+##		- Rsync include/exclude syntax is an absolute mess, and the order of
+##        include/exclude is backwards from the way people reason. Luckily it,
+##		  and many other file backup/sync-related tools, allow some form of
+##		  '--files-from' syntax, where it just processes whatever is literally
+##		  listed in the file. This program creates that list of files file.
+##	TODO:
+##		- Once fully working and debugged, migrate code into TEMPLATE_single-file_20200921 boilerplate.
+##			- Mainly for access to profiling and robust arg-handling.
+##		- Read regexes from a file that gets specified on the command line (--regexes-from), each line starting with "+" or "-".
+##		- Allow arg to specify output file (and excluded & 'find error' outputs).
+##		- Accept dirs to scan as final command-line args (and loop over them).
+##		- Accept an arg that specifies output file formatting (e.g. for Borg backup, Restic with escaped brackets, etc.)
+##		- Allow args to filter by date (via initial 'find' scan).
+##			- For 'excluded' output file, will have to do two scans: One without date filters, one with.
+##		- Allow args to filter by size (via initial 'find' scan); see date limiting about two files.
+##		- Allow user-defined regex macros in regexes file.
+##		- Include flag to create a default regexes file complete with basic macros.
+##  Notes:
+##		- Before running, check to make sure 
+##	History:
+##		- 20200918 JC: Created.
+##		- 20200920 JC:
+##			- Added linter excludes.
+##			- Added warning about this being maintained on github.
+
+
+## Constants (update as appropriate).
+declare -r outputFilesPrefix="/tmp/restic-filelist"
+
+
+## Initial directly scan. Update as appropriate for your requirements.
+## This produces the baseline of what to include.
+## This is obviously very specific per host and/or user. This has config
+##   and code all in one.
+function ScanDirs(){
+
+	ScanDir "/etc"
+	ScanDir "/home"
+
+	if   [[ false ]]; then :;
+		ScanDir "/mnt/bfs/bf7/0-0"
+		ScanDir "/mnt/bfs/bf7/0_backup"
+	elif [[ "${HOSTNAME}" == "b12" ]]; then :;
+		ScanDir "/export/zf9/0-0"
+		ScanDir "/export/zf9/0_backup"
+	elif [[ "${HOSTNAME}" == "b16" ]]; then :;
+	elif [[ "${HOSTNAME}" == "b17" ]]; then :;
+	fi
+
+}
+
+
+## This function is the main include/exclude smarts. Update as appropriate for your requirements.
+## Like most of this script, it's procedural rather than declarative configuration, but at least
+##   it's relatively clean and easy to maintain. The main drawback is that you need separate
+##   copies of this script for each concurrent configuration.
+function ProcessIncExc(){
+
+	## Include only patterns of files we want to backup.
+	AddByRegex     ".*"
+
+	## From that, remove cruft we don't want. Karen.
+	RemoveByRegex  "\/home\/karen(\/.*|\$)"
+	RemoveByRegex  "\/etc\/skel(\/.*|\$)"
+
+	## Potentially or explicitly override previous removals by potentially re-adding stuff back in (from original source).
+	AddByRegex     ".*\.(doc|xls)x\$"
+	AddByRegex     "\/home\/karen(\/|\/.*\/)russian-dossiers(\/.*|\$)"
+
+	## Remove any lingering junk we definitely never want.
+	RemoveByRegex  ".*\/\.?(cache|te?mp)(\/.*|\$)"
+	RemoveByRegex  "\/home\/\.ecryptfs(\/.*|\$)"
+	RemoveByRegex  "\/home\/[^\/]+\/(\.local)(\/.*|\$)"
+
+}
+
+function ScanDir(){
+	echo "[ Scanning '$1' ... ]"
+	find  "$1"  -type f  ${@:2}                      >>  "${outputFilesPrefix}__tmp_source.txt"  ||  true
+	find  "$1"  -type d  ${@:2} -exec echo "{}/" \;  >>  "${outputFilesPrefix}__tmp_source.txt"  ||  true
+}
+
+function AddByRegex(){
+	grep  -iP  "$1"  "${outputFilesPrefix}_source.txt"  >>  "${outputFilesPrefix}.txt"
+}
+
+function RemoveByRegex(){
+	## Use grep instead of sed, because of sed's complicating escape rules e.g. for parentheses.
+	grep  -iPv  "$1"  "${outputFilesPrefix}.txt"  >  "${outputFilesPrefix}__tmp.txt"
+	mv  "${outputFilesPrefix}__tmp.txt"  "${outputFilesPrefix}.txt"
+}
+function ThrowError(){
+	echo
+	echo "Error: $*"
+	echo
+	exit 1
+}
+
+
+set -eE
+
+## Validate dependencies
+echo
+[[ -z "$(where find 2>/dev/null || true)" ]] && ThrowError "Program 'find' not found in path."
+[[ -z "$(where sort 2>/dev/null || true)" ]] && ThrowError "Program 'sort' not found in path."
+
+## Prep
+[[ -f "${outputFilesPrefix}.txt"                            ]]  &&  mv  "${outputFilesPrefix}.txt"                             "${outputFilesPrefix}__old.txt"
+[[ -f "${outputFilesPrefix}_source.txt"                     ]]  &&  mv  "${outputFilesPrefix}_source.txt"                      "${outputFilesPrefix}__old_source.txt"
+[[ -f "${outputFilesPrefix}_verification_diff-excluded.txt" ]]  &&  mv  "${outputFilesPrefix}_verification_diff-excluded.txt"  "${outputFilesPrefix}__old_verification_diff-excluded.txt"
+[[ -f "${outputFilesPrefix}_verification_errors.txt"        ]]  &&  mv  "${outputFilesPrefix}_verification_errors.txt"         "${outputFilesPrefix}__old_verification_errors.txt"
+[[ -f "${outputFilesPrefix}__tmp.txt"                       ]]  &&  rm  "${outputFilesPrefix}__tmp.txt"
+[[ -f "${outputFilesPrefix}__tmp_source.txt"                ]]  &&  rm  "${outputFilesPrefix}__tmp_source.txt"
+
+## Generate intermediate master source list. Don't follow symlinks. This file won't be altered. Can also add 'find' date range filters, etc. as additional args.
+
+## Validate
+[[ ! -s "${outputFilesPrefix}__tmp_source.txt" ]] && ThrowError "No files matched specified scan folder input, and include/exclude rules."
+
+## Prep for processing
+echo "[ Sorting ... ]"
+sort "${outputFilesPrefix}__tmp_source.txt" > "${outputFilesPrefix}_source.txt"
+rm   "${outputFilesPrefix}__tmp_source.txt"
+
+## Process include/exclude rules
+echo "[ Processing include/excludes ... ]"
+ProcessIncExc  "$1"
+
+## And finally, sort and uniqueify result file
+echo "[ Sorting final output ... ]"
+sort  "${outputFilesPrefix}.txt"  |  uniq  >  "${outputFilesPrefix}__tmp.txt"
+mv  "${outputFilesPrefix}__tmp.txt"  "${outputFilesPrefix}.txt"
+
+## And spit out highly useful output for human verification
+if [[ ! -f "$(where diff 2>/dev/null || true)" ]]; then
+	echo "[ FYI: Install 'diff' to produce a verification file of excluded files. ]"
+else
+	echo "[ Producing verification file list ... ]"
+	diff --new-line-format="" --unchanged-line-format=""  "${outputFilesPrefix}_source.txt"  "${outputFilesPrefix}.txt"  > "${outputFilesPrefix}_verification_diff-excluded.txt"
+fi
+
+echo
+echo "Resulting file list ...............: ${outputFilesPrefix}.txt"
+echo
+echo "For troubleshooting:"
+echo "    Original scanned source list...: ${outputFilesPrefix}_source.txt}"
+echo "    List of files not included ....: ${outputFilesPrefix}_verification_diff-excluded.txt"
+echo "    List 'find' errors ............: ${outputFilesPrefix}_verification_errors.txt"
+
+echo; echo "[ Done. ]"; echo
