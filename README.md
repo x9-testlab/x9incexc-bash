@@ -57,13 +57,13 @@ That's it, it's that simple. That's why a simple Bash script can do it. And as y
 
 With simplifying regex macros, the previous include/exclude list could look like this:
 
-    - _exclude_ `▶∙ecryptfs◀`
-    - _exclude_ `▶downloads🠛`
-    - _exclude_ `▶∙?cache🠛`
-    - **include** `★∙(jpe?g|dng|arw)$`
-    - _exclude_ `🠙cancun🠛`
-    - **include** `★∙(xls|ppt|doc)x$`
-    - _exclude_ `▶∙?trash🠛`
+- _exclude_ `▶∙ecryptfs◀`
+- _exclude_ `▶downloads🠛`
+- _exclude_ `▶∙?cache🠛`
+- **include** `★∙(jpe?g|dng|arw)$`
+- _exclude_ `🠙cancun🠛`
+- **include** `★∙(xls|ppt|doc)x$`
+- _exclude_ `▶∙?trash🠛`
 
 ## To do
 
