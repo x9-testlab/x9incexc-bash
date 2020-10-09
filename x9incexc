@@ -6,7 +6,8 @@
 # shellcheck disable=2120  ## OK with declaring variables that accept arguments, without calling with arguments (this is 'overloading').
 
 ##
-##	WARNING: This script is maintained on github. Don't edit directly. https://github.com/jim-collier/x9dedupe
+##	WARNING: This script is maintained on github. Don't edit directly:
+##	https://github.com/x9-testlab/x9incexc-bash/blob/develop/x9incexc
 ##
 
 ##	Purpose:
@@ -17,7 +18,7 @@
 ##		screaming about the probing, that one.
 ##	Problem solved:
 ##		- Rsync include/exclude syntax is an absolute mess, and the order of
-##        include/exclude is backwards from the way people reason. Luckily it,
+##		  include/exclude is backwards from the way people reason. Luckily it,
 ##		  and many other file backup/sync-related tools, allow some form of
 ##		  '--files-from' syntax, where it just processes whatever is literally
 ##		  listed in the file. This program creates that list of files file.
