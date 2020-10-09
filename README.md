@@ -53,7 +53,7 @@ That's it, it's that simple. That's why a simple Bash script can do it. And as y
     - Add back to _filtered list_, anything from _immutible source list_ matching `.*\.(jpe?g|dng|arw)$`.
     - Remove from _filtered list_ (even from photos just added back in), `(^|.*[^\w])cancun($|[^\w].*)`.
     - Add back to _filtered list_, just in case, anything from _immutible source list_ matching `.*\.(xls|ppt|doc)x$`.
-    - But really, we don't want _anything at all_ in trash, so finally remove from _filtered list_, `(^|.*\/)trash($|[^\w].*)`.
+    - But really, we don't want _anything at all_ in trash, so finally remove from _filtered list_, `(^|.*\/)\.?trash($|[^\w].*)`.
 
 With simplifying regex macros, the previous include/exclude list could look like this:
 
