@@ -8,16 +8,54 @@ This is the most complete and almost-done part of [a larger effort](https://gith
 
 ## Feautes
 
-- Scan one or more specified directories.
-- Filter results based on regex (and/or regex macros).
-- See separate lists of "included" files, and "excluded" files! (This is huge, and helps debug problems before consuming programs have to deal with it.)
-    - For example, for consumption by backup programs, this helps you identify exactly what will not be backed up.
+- Scans one or more specified directories, to generate a combined, sorted file list.
+- Filter those results based on a series of regexes (and/or regex macros).
+- View separate lists of "included" files, and "excluded" files! (This is huge, and helps debug problems before consuming programs have to deal with it.)
+    - For example: for consumption by a backup program, this helps you identify exactly what will and won't not be backed up.
     - Optionally, or additionally, see the same info in "diff" format.
 - Unlike many glob-based "include/exclude" features of other programs (e.g. `rsync`, `rclone`), includes and excludes are processed linearly, top-to-bottom. (Not backwards, right-to-left or bottom-to-top.)
     - Includes and excludes don't depend on each other. There is no concept of "nesting", which greatly complicates both programming logic, and the human brainpower to rationalize what's going on. (I.e. you don't have to hold in mind a complex "mental stack" of what is in and what's out, as you're struggling to write the rules.)
     - Anything included, can be later excluded.
     - Anything excluded, can be later included.
-    - And so on, infinitely. This makes it "infinitely" easier to think through and hold in the mind all at once, as there are no dependencies other than the top-down order of processing.
+
+## How it works
+
+It makes it easy to reason about the input and output, if you think of it this way:
+
+- The directory-scanning process produces a main list of files. This list is considered the _immutible source list_.
+- The include/exclude process generates a _second_ list of filtered files - what you're going to consume - intended to be (but not necessarily) smaller than the first. (But never larger.)
+- The filtered list actually starts out as an exact copy of the immutible source list.
+- Any exclude rule, _always removes matches from the filtered list_.
+- Any include rule, _always adds back in, matches from the immutible source list_.
+- At any point in the list of include/exclude rules, you could (for some reason) remove _everything_ from the filtered list, by specifying `.*` as an exclude rule. No one is going to judge you (except your peers who might have to maintain it).
+- Axiomatically, at any point you could override all your laborious reductions, by specifying `.*` as an _include_ rule. (I mean, at this point it would just be obvious that your list of rules is capricious and punishing.)
+
+That's it, it's that simple. That's why a simple Bash script can do it. And as you might have figured out:
+
+- Anything included at any point, can be later excluded.
+- Anything excluded at any point, can be later included.
+    - And so on, infinitely. This makes it easier to think through and hold in the mind all at once, as there are no dependencies and nesting rules - just a simple top-down order of processing.
+- It's fairly trivial to exclude a broad-scoped pattern, only to add a more nuanced subset back in later.
+- It's fairly trivial to add or remove from an already nuanced set, a _different_ pattern that cuts across the existing results set a different way.
+- It would be easy to repeatedly remove and add back in the same file, folder, or patterns, repeatedly. (Indefinitely, really.)
+    - That's OK, the cost in performance is reasonably low (barring obviously absurd extremes), but doing so is also a fairly obvious mistake to notice and avoid.
+    - Adding the same files back in over and over, doesn't result in them being listed multiple times in the final output. No matter what, each unique filename exists in the final output only once.
+
+## Logical example
+
+- Start with a list of all normal files in these folders:
+    - `/home`
+    - `/var`
+- From that resulting _immutible source list_ of files, and initial identical copy as _filtered list_:
+    - Remove any lines with one or more match of `.*\/\.ecryptfs($|[^\w].*)` from _filtered list_.
+    - Remove any lines with one or more match of `.*\/Downloads` from _filtered list_.
+    - Remove any lines with one or more match of `.*\/\.cache` from _filtered list_.
+    - Add back to _filtered list_, anything from _immutible source list_ matching `.*\.(jpe?g|dng|arw)$`.
+    - Remove from _filtered list_ (even from photos just added back in), `(^|.*[^\w])cancun($|[^\w].*)`.
+    - Add back to _filtered list_, just in case, anything from _immutible source list_ matching `.*\.(xls|ppt|doc)x$`.
+    - But really, we don't want _anything at all_ in trash, so finally remove from _filtered list_, `.*\trash($|[^\w].*)`.
+
+With simplifying regex macros, the previous include/exclude list could look like this:
 
 
 ## To do
